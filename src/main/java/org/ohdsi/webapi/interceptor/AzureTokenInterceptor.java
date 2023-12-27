@@ -18,6 +18,11 @@ public class AzureTokenInterceptor implements ContainerRequestFilter {
 
     @Override
     public void filter(ContainerRequestContext requestContext) {
+        String path = requestContext.getUriInfo().getPath();
+
+        if (isIgnoredPath(path)) {
+            return; 
+        }
         String token = requestContext.getHeaderString("Auth");
         if (token == null || !validateTokenWithMicrosoftGraph(token)) {
             requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED).build());
@@ -37,5 +42,8 @@ public class AzureTokenInterceptor implements ContainerRequestFilter {
             e.printStackTrace();
             return false;
         }
+    }
+    private boolean isIgnoredPath(String path) {
+        return path.startsWith("i18n/locales") || path.startsWith("notifications?hide_statuses=");
     }
 }
