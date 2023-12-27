@@ -1,25 +1,27 @@
 package org.ohdsi.webapi.interceptor;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import javax.annotation.Priority;
+import javax.ws.rs.Priorities;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.ext.Provider;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
-public class AzureTokenInterceptor extends HandlerInterceptorAdapter {
+@Provider
+@Priority(Priorities.AUTHENTICATION)
+public class AzureTokenInterceptor implements ContainerRequestFilter {
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        String token = request.getHeader("Auth");
+    public void filter(ContainerRequestContext requestContext) {
+        String token = requestContext.getHeaderString("Auth");
         if (token == null || !validateTokenWithMicrosoftGraph(token)) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
-            return false;
+            requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED).build());
         }
-        return true;
     }
 
     private boolean validateTokenWithMicrosoftGraph(String token) {
@@ -28,14 +30,12 @@ public class AzureTokenInterceptor extends HandlerInterceptorAdapter {
             getRequest.setHeader("Authorization", "Bearer " + token);
             getRequest.setHeader("Content-Type", "application/json");
 
-            CloseableHttpResponse httpResponse = client.execute(getRequest);
-            HttpEntity entity = httpResponse.getEntity();
-            if (entity != null) {
+            try (CloseableHttpResponse httpResponse = client.execute(getRequest)) {
                 return httpResponse.getStatusLine().getStatusCode() == 200;
             }
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
-        return false;
     }
 }
